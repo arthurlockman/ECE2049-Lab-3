@@ -18,8 +18,11 @@ unsigned int timercount;
 #define CALADC12_15V_30C  *((unsigned int *)0x1A1A)
 #define CALADC12_15V_85C  *((unsigned int *)0x1A1C)
 
-unsigned int in_temp;
-char temp_changed;
+volatile unsigned int in_temp;
+volatile unsigned int in_wheel;
+volatile char temp_changed = 0;
+int   times[60];
+float tempC[60];
 
 void swDelay(int numLoops);
 int read_push_button();
@@ -29,7 +32,7 @@ void set_touchpad(char states);
 void swDelayShort(int numLoops);
 void runtimerA2(void);
 void stoptimerA2(void);
-void convert_temps();
+void adc_convert();
 
 #pragma vector=TIMER2_A0_VECTOR
 __interrupt void TimerA2_ISR(void)
@@ -40,7 +43,7 @@ __interrupt void TimerA2_ISR(void)
     if (timercount % 100 == 0)
     {
         increment_tm(global_time, 1);
-        convert_temps();
+        adc_convert();
     }
 }
 
@@ -48,6 +51,7 @@ __interrupt void TimerA2_ISR(void)
 __interrupt void ADC12_ISR(void)
 {
     in_temp = ADC12MEM0;
+    in_wheel = ADC12MEM1;
     temp_changed = 1;
 }
 
@@ -64,11 +68,15 @@ void main(void)
     // internal reference voltages to
     // ADC12_A control registers
 
-    ADC12CTL0 = ADC12SHT0_9 | ADC12REFON | ADC12ON;     // Internal ref = 1.5V
-    ADC12CTL1 = ADC12SHP;                     // Enable sample timer
+    P8SEL &= ~BIT0;
+    P8DIR |= BIT0;
+    P8OUT |= BIT0;
+
+    ADC12CTL0 = ADC12SHT0_9 | ADC12REFON | ADC12ON | ADC12MSC;     // Internal ref = 1.5V
+    ADC12CTL1 = ADC12SHP | ADC12CONSEQ_1;                     // Enable sample timer
     // Using ADC12MEM0 to store reading
     ADC12MCTL0 = ADC12SREF_1 + ADC12INCH_10;  // ADC i/p ch A10 = temp sense
-    // ACD12SREF_1 = internal ref = 1.5v
+    ADC12MCTL1 = ADC12SREF_0 + ADC12INCH_5 + ADC12EOS;
 
     __delay_cycles(100);                    // delay to allow Ref to settle
     ADC12CTL0 |= ADC12ENC;                // Enable conversion
@@ -77,7 +85,7 @@ void main(void)
     bits85 = CALADC12_15V_85C;
     degC_per_bit = ((float)(85.0 - 30.0)) / ((float)(bits85 - bits30));
 
-    ADC12IE = BIT0;
+    ADC12IE = BIT1;
     _BIS_SR(GIE);
 
     //Perform initializations (see peripherals.c)
@@ -98,15 +106,67 @@ void main(void)
     convert_time(time_str, global_time);
     convert_date(date_str, global_time);
     runtimerA2();
+    int utc;
     while (1)
     {
+    	GrClearDisplay(&g_sContext);
         switch (state)
         {
         case S_RUN:
-            convert_time(time_str, global_time);
-            convert_date(date_str, global_time);
+            if(read_push_button() == 1)
+            {
+            	stoptimerA2();
+            	state = S_EDIT;
+            }
             break;
         case S_EDIT:
+        	if(read_push_button() == 2)
+        	{
+        		runtimerA2();
+        		state = S_RUN;
+        		editstate = E_MON;
+        		mktime(global_time);
+        	}
+        	adc_convert();
+        	switch (editstate)
+        	{
+        	case E_MON:
+        		if (read_push_button() == 1)
+        			editstate = E_DAY;
+        		global_time->tm_mon = map(in_wheel, 0, 4085, 0, 11);
+        		GrLineDrawH(&g_sContext, 31, 51, 25);
+        		break;
+        	case E_DAY:
+        		if (read_push_button() == 1)
+        			editstate = E_HR;
+        		if (global_time->tm_mon == 1)
+        			global_time->tm_mday = map(in_wheel, 0, 4085, 1, 28);
+        		if (global_time->tm_mon == 3 || global_time->tm_mon == 5 ||
+        				global_time->tm_mon == 8 || global_time->tm_mon == 10)
+        			global_time->tm_mday = map(in_wheel, 0, 4085, 1, 30);
+        		else
+        			global_time->tm_mday = map(in_wheel, 0, 4085, 1, 31);
+        		GrLineDrawH(&g_sContext, 56, 66, 25);
+        		break;
+        	case E_HR:
+        		if (read_push_button() == 1)
+        			editstate = E_MIN;
+        		global_time->tm_hour = map(in_wheel, 0, 4085, 0, 23);
+        		GrLineDrawH(&g_sContext, 27, 37, 15);
+        		break;
+        	case E_MIN:
+        		if (read_push_button() == 1)
+        			editstate = E_SEC;
+        		global_time->tm_min = map(in_wheel, 0, 4085, 0, 59);
+        		GrLineDrawH(&g_sContext, 44, 54, 15);
+        		break;
+        	case E_SEC:
+        		if (read_push_button() == 1)
+        			editstate = E_MON;
+        		global_time->tm_sec = map(in_wheel, 0, 4085, 0, 59);
+        		GrLineDrawH(&g_sContext, 62, 72, 15);
+        		break;
+        	}
             break;
         }
 
@@ -116,23 +176,27 @@ void main(void)
             temperatureDegF = temperatureDegC * 9.0 / 5.0 + 32.0;
             temp_changed = 0;
         }
-        GrClearDisplay(&g_sContext);
         convert_temp(temp_c_str, temperatureDegC, 0);
         convert_temp(temp_f_str, temperatureDegF, 1);
+        convert_time(time_str, global_time);
+        convert_date(date_str, global_time);
+        utc = utc_time_int(global_time);
+
+        times[utc % 60] = utc;
+        tempC[utc % 60] = temperatureDegC;
+
         GrStringDrawCentered(&g_sContext, time_str, AUTO_STRING_LENGTH, 51, 10, TRANSPARENT_TEXT);
         GrStringDrawCentered(&g_sContext, date_str, AUTO_STRING_LENGTH, 51, 20, TRANSPARENT_TEXT);
         GrStringDrawCentered(&g_sContext, temp_c_str, AUTO_STRING_LENGTH, 51, 30, TRANSPARENT_TEXT);
         GrStringDrawCentered(&g_sContext, temp_f_str, AUTO_STRING_LENGTH, 51, 40, TRANSPARENT_TEXT);
         GrFlush(&g_sContext);
-        __no_operation();                       // SET BREAKPOINT HERE
     }
 }
 
-void convert_temps()
+void adc_convert()
 {
     ADC12CTL0 &= ~ADC12SC;  // clear the start bit
     ADC12CTL0 |= ADC12SC;       // Sampling and conversion start
-    // Single conversion (single channel)
 }
 
 void runtimerA2(void)
