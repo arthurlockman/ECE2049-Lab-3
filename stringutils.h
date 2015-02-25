@@ -129,32 +129,32 @@ inline void initialize_tm(struct tm * time_ptr)
     rawtime -= rawtime * 60;
     time_ptr->tm_sec = rawtime;
     time_ptr->tm_year = 0;
-//    int yday = time_ptr->tm_yday;
-//        if (yday <= 31)
-//            time_ptr->tm_mon = 0;
-//        else if (yday -= 31 <= 28)
-//            time_ptr->tm_mon = 1;
-//        else if (yday -= 28 <= 31)
-//            time_ptr->tm_mon = 2;
-//        else if (yday -= 31 <= 30)
-//            time_ptr->tm_mon = 3;
-//        else if (yday -= 30 <= 31)
-//            time_ptr->tm_mon = 4;
-//        else if (yday -= 31 <= 30)
-//            time_ptr->tm_mon = 5;
-//        else if (yday -= 30 <= 31)
-//            time_ptr->tm_mon = 6;
-//        else if (yday -= 31 <= 31)
-//            time_ptr->tm_mon = 7;
-//        else if (yday -= 31 <= 30)
-//            time_ptr->tm_mon = 8;
-//        else if (yday -= 30 <= 31)
-//            time_ptr->tm_mon = 9;
-//        else if (yday -= 31 <= 30)
-//            time_ptr->tm_mon = 10;
-//        else if (yday -= 30 <= 31)
-//            time_ptr->tm_mon = 11;
-//        time_ptr->tm_mday = yday;
+    int yday = time_ptr->tm_yday;
+	if (yday <= 31)
+		time_ptr->tm_mon = 0;
+	else if (yday -= 31 <= 28)
+		time_ptr->tm_mon = 1;
+	else if (yday -= 28 <= 31)
+		time_ptr->tm_mon = 2;
+	else if (yday -= 31 <= 30)
+		time_ptr->tm_mon = 3;
+	else if (yday -= 30 <= 31)
+		time_ptr->tm_mon = 4;
+	else if (yday -= 31 <= 30)
+		time_ptr->tm_mon = 5;
+	else if (yday -= 30 <= 31)
+		time_ptr->tm_mon = 6;
+	else if (yday -= 31 <= 31)
+		time_ptr->tm_mon = 7;
+	else if (yday -= 31 <= 30)
+		time_ptr->tm_mon = 8;
+	else if (yday -= 30 <= 31)
+		time_ptr->tm_mon = 9;
+	else if (yday -= 31 <= 30)
+		time_ptr->tm_mon = 10;
+	else if (yday -= 30 <= 31)
+		time_ptr->tm_mon = 11;
+	time_ptr->tm_mday = yday;
     mktime(time_ptr);
 };
 
