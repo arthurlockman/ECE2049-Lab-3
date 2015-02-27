@@ -1,4 +1,51 @@
-#include <time.h>
+struct tm
+{
+    int tm_sec;      /* seconds after the minute   - [0,59]  */
+    int tm_min;      /* minutes after the hour     - [0,59]  */
+    int tm_hour;     /* hours after the midnight   - [0,23]  */
+    int tm_mday;     /* day of the month           - [1,31]  */
+    int tm_mon;      /* months since January       - [0,11]  */
+    int tm_year;     /* years since 1900                     */
+    int tm_wday;     /* days since Sunday          - [0,6]   */
+    int tm_yday;     /* days since Jan 1st         - [0,365] */
+    int tm_isdst;    /* Daylight Savings Time flag           */
+
+};
+
+inline unsigned long mktime(struct tm * time_ptr)
+{
+	const int mon_days[] =
+	      {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+	if (time_ptr->tm_sec > 59)
+	{
+		time_ptr->tm_min += 1;
+		time_ptr->tm_sec = 0;
+	}
+	if (time_ptr->tm_min > 59)
+	{
+		time_ptr->tm_hour += 1;
+		time_ptr->tm_min = 0;
+	}
+	if (time_ptr->tm_hour > 23)
+	{
+		time_ptr->tm_yday += 1;
+		time_ptr->tm_mday += 1;
+		time_ptr->tm_hour = 0;
+		if (time_ptr->tm_mday > mon_days[time_ptr->tm_mon])
+		{
+			time_ptr->tm_mon += 1;
+			time_ptr->tm_mday = 1;
+		}
+	}
+	if (time_ptr->tm_mon > 11 || time_ptr->tm_yday > 365)
+	{
+		time_ptr->tm_mon = 0;
+		time_ptr->tm_yday = 0;
+		time_ptr->tm_mday = 1;
+	}
+    return time_ptr->tm_yday * 86400L + time_ptr->tm_hour * 3600L
+    		+ time_ptr->tm_min * 60L + time_ptr->tm_sec;
+};
 
 inline int convert_temp(char* dest, float temp, int units)
 {
@@ -120,51 +167,39 @@ inline void increment_tm(struct tm * time_ptr, int seconds)
 
 inline void initialize_tm(struct tm * time_ptr)
 {
+	const int mon_days[] =
+		  {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
     unsigned long rawtime = 8569460;
     time_ptr->tm_yday = rawtime / 86400;
-    rawtime -= rawtime * 86400;
+    rawtime -= time_ptr->tm_yday * 86400;
     time_ptr->tm_hour = rawtime / 3600;
-    rawtime -= rawtime * 3600;
+    rawtime -= time_ptr->tm_hour * 3600;
     time_ptr->tm_min = rawtime / 60;
-    rawtime -= rawtime * 60;
+    rawtime -= time_ptr->tm_min * 60;
     time_ptr->tm_sec = rawtime;
     time_ptr->tm_year = 0;
     int yday = time_ptr->tm_yday;
-	if (yday <= 31)
-		time_ptr->tm_mon = 0;
-	else if (yday -= 31 <= 28)
-		time_ptr->tm_mon = 1;
-	else if (yday -= 28 <= 31)
-		time_ptr->tm_mon = 2;
-	else if (yday -= 31 <= 30)
-		time_ptr->tm_mon = 3;
-	else if (yday -= 30 <= 31)
-		time_ptr->tm_mon = 4;
-	else if (yday -= 31 <= 30)
-		time_ptr->tm_mon = 5;
-	else if (yday -= 30 <= 31)
-		time_ptr->tm_mon = 6;
-	else if (yday -= 31 <= 31)
-		time_ptr->tm_mon = 7;
-	else if (yday -= 31 <= 30)
-		time_ptr->tm_mon = 8;
-	else if (yday -= 30 <= 31)
-		time_ptr->tm_mon = 9;
-	else if (yday -= 31 <= 30)
-		time_ptr->tm_mon = 10;
-	else if (yday -= 30 <= 31)
-		time_ptr->tm_mon = 11;
+    if (yday <= mon_days[0])
+    	time_ptr->tm_mon = 0;
+    else
+    {
+    	int i;
+    	for (i = 1; i <= 11; i++)
+    	{
+    		yday -= mon_days[i-1];
+    		if (yday <= mon_days[i])
+    		{
+    			time_ptr->tm_mon = i;
+    			break;
+    		}
+    	}
+    }
 	time_ptr->tm_mday = yday;
     mktime(time_ptr);
 };
 
-inline unsigned int utc_time_int(struct tm * time_ptr)
+inline long map(long x, long in_min, long in_max, long out_min, long out_max)
 {
-    return time_ptr->tm_yday * 86400 + time_ptr->tm_hour * 3600
-    		+ time_ptr->tm_min * 60 + time_ptr->tm_sec;
-};
-
-inline int map(int x, int in_min, int in_max, int out_min, int out_max)
-{
+	(x > in_max) ? x = in_max : (x < in_min) ? x = in_min : 1;
 	return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
 };

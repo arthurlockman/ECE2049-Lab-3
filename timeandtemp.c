@@ -21,8 +21,14 @@ unsigned int timercount;
 volatile unsigned int in_temp;
 volatile unsigned int in_wheel;
 volatile char temp_changed = 0;
-int   times[60];
+unsigned long times[60];
 float tempC[60];
+
+char* time_str;
+char* date_str;
+char* temp_c_str;
+char* temp_f_str;
+unsigned long utc;
 
 void swDelay(int numLoops);
 int read_push_button();
@@ -99,88 +105,87 @@ void main(void)
     state_t state = S_RUN;
     editstate_t editstate = E_MON;
 
-    char* time_str = (char*)malloc(sizeof(char) * 9);
-    char* date_str = (char*)malloc(sizeof(char) * 7);
-    char* temp_c_str = (char*)malloc(sizeof(char) * 8);
-    char* temp_f_str = (char*)malloc(sizeof(char) * 8);
+    time_str = (char*)malloc(sizeof(char) * 9);
+    date_str = (char*)malloc(sizeof(char) * 7);
+    temp_c_str = (char*)malloc(sizeof(char) * 8);
+    temp_f_str = (char*)malloc(sizeof(char) * 8);
     convert_time(time_str, global_time);
     convert_date(date_str, global_time);
     runtimerA2();
-    int utc;
+	volatile int btn;
     while (1)
     {
+    	btn = read_push_button();
     	GrClearDisplay(&g_sContext);
         switch (state)
         {
-        case S_RUN:
-            if(read_push_button() == 1)
-            {
-            	stoptimerA2();
-            	state = S_EDIT;
-            }
-            break;
-        case S_EDIT:
-        	if(read_push_button() == 2)
-        	{
-        		runtimerA2();
-        		state = S_RUN;
-        		editstate = E_MON;
-        		mktime(global_time);
-        	}
-        	adc_convert();
-        	switch (editstate)
-        	{
-        	case E_MON:
-        		if (read_push_button() == 1)
-        			editstate = E_DAY;
-        		global_time->tm_mon = map(in_wheel, 0, 4085, 0, 11);
-        		GrLineDrawH(&g_sContext, 31, 51, 25);
-        		break;
-        	case E_DAY:
-        		if (read_push_button() == 1)
-        			editstate = E_HR;
-        		if (global_time->tm_mon == 1)
-        			global_time->tm_mday = map(in_wheel, 0, 4085, 1, 28);
-        		if (global_time->tm_mon == 3 || global_time->tm_mon == 5 ||
-        				global_time->tm_mon == 8 || global_time->tm_mon == 10)
-        			global_time->tm_mday = map(in_wheel, 0, 4085, 1, 30);
-        		else
-        			global_time->tm_mday = map(in_wheel, 0, 4085, 1, 31);
-        		GrLineDrawH(&g_sContext, 56, 66, 25);
-        		break;
-        	case E_HR:
-        		if (read_push_button() == 1)
-        			editstate = E_MIN;
-        		global_time->tm_hour = map(in_wheel, 0, 4085, 0, 23);
-        		GrLineDrawH(&g_sContext, 27, 37, 15);
-        		break;
-        	case E_MIN:
-        		if (read_push_button() == 1)
-        			editstate = E_SEC;
-        		global_time->tm_min = map(in_wheel, 0, 4085, 0, 59);
-        		GrLineDrawH(&g_sContext, 44, 54, 15);
-        		break;
-        	case E_SEC:
-        		if (read_push_button() == 1)
-        			editstate = E_MON;
-        		global_time->tm_sec = map(in_wheel, 0, 4085, 0, 59);
-        		GrLineDrawH(&g_sContext, 62, 72, 15);
-        		break;
-        	}
-            break;
-        }
+		case S_RUN:
+			if (btn == 1) {
+				stoptimerA2();
+				state = S_EDIT;
+			}
+			break;
+		case S_EDIT:
+			if (btn == 2) {
+				runtimerA2();
+				state = S_RUN;
+				editstate = E_MON;
+				mktime(global_time);
+			}
+			adc_convert();
+			switch (editstate) {
+			case E_MON:
+				if (btn == 1)
+					editstate = E_DAY;
+				global_time->tm_mon = map(in_wheel, 0, 4085, 0, 11);
+				GrLineDrawH(&g_sContext, 31, 51, 25);
+				break;
+			case E_DAY:
+				if (btn == 1)
+					editstate = E_HR;
+				if (global_time->tm_mon == 1)
+					global_time->tm_mday = map(in_wheel, 0, 4085, 1, 28);
+				if (global_time->tm_mon == 3 || global_time->tm_mon == 5
+						|| global_time->tm_mon == 8
+						|| global_time->tm_mon == 10)
+					global_time->tm_mday = map(in_wheel, 0, 4085, 1, 30);
+				else
+					global_time->tm_mday = map(in_wheel, 0, 4085, 1, 31);
+				GrLineDrawH(&g_sContext, 56, 66, 25);
+				break;
+			case E_HR:
+				if (btn == 1)
+					editstate = E_MIN;
+				global_time->tm_hour = map(in_wheel, 0, 4085, 0, 23);
+				GrLineDrawH(&g_sContext, 27, 37, 15);
+				break;
+			case E_MIN:
+				if (btn == 1)
+					editstate = E_SEC;
+				global_time->tm_min = map(in_wheel, 0, 4085, 0, 59);
+				GrLineDrawH(&g_sContext, 44, 54, 15);
+				break;
+			case E_SEC:
+				if (btn == 1)
+					editstate = E_MON;
+				global_time->tm_sec = map(in_wheel, 0, 4085, 0, 59);
+				GrLineDrawH(&g_sContext, 62, 72, 15);
+				break;
+			}
+			break;
+		}
 
-        if (temp_changed)
-        {
-            temperatureDegC = (float)((long)in_temp - CALADC12_15V_30C) * degC_per_bit + 30.0;
-            temperatureDegF = temperatureDegC * 9.0 / 5.0 + 32.0;
-            temp_changed = 0;
-        }
+		if (temp_changed) {
+			temperatureDegC = (float) ((long) in_temp - CALADC12_15V_30C )
+					* degC_per_bit + 30.0;
+			temperatureDegF = temperatureDegC * 9.0 / 5.0 + 32.0;
+			temp_changed = 0;
+		}
         convert_temp(temp_c_str, temperatureDegC, 0);
         convert_temp(temp_f_str, temperatureDegF, 1);
         convert_time(time_str, global_time);
         convert_date(date_str, global_time);
-        utc = utc_time_int(global_time);
+        utc = mktime(global_time);
 
         times[utc % 60] = utc;
         tempC[utc % 60] = temperatureDegC;
@@ -214,18 +219,18 @@ void stoptimerA2(void)
 
 int read_push_button()
 {
-    P1SEL &= ~BIT7;
-    P2SEL &= ~BIT2;
-    P1DIR &= ~BIT7;
-    P2DIR &= ~BIT2;
-    P1REN |= BIT7;
-    P2REN |= BIT2;
-    P1OUT &= BIT7;
-    P2OUT &= BIT2;
-    if ((P1IN & BIT7) == 0 && (P2IN & BIT2) == 0) return 3;
-    else if ((P1IN & BIT7) == 0) return 1;
-    else if ((P2IN & BIT2) == 0) return 2;
-    else return 0;
+	P1SEL &= ~BIT7;
+	P2SEL &= ~BIT2;
+	P1DIR &= ~BIT7;
+	P2DIR &= ~BIT2;
+	P1REN |= BIT7;
+	P2REN |= BIT2;
+	P1OUT &= BIT7;
+	P2OUT &= BIT2;
+	if ((P1IN & BIT7) == 0 && (P2IN & BIT2) == 0) return 3;
+	else if ((P1IN & BIT7) == 0) return 1;
+	else if ((P2IN & BIT2) == 0) return 2;
+	else return 0;
 }
 
 void configLED1_3(char inbits)
