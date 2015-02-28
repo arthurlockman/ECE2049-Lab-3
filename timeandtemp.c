@@ -113,6 +113,8 @@ void main(void)
     convert_date(date_str, global_time);
     runtimerA2();
 	volatile int btn;
+	const int mon_days[] =
+		  {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
     while (1)
     {
     	btn = read_push_button();
@@ -131,6 +133,7 @@ void main(void)
 				state = S_RUN;
 				editstate = E_MON;
 				mktime(global_time);
+				break;
 			}
 			adc_convert();
 			switch (editstate) {
@@ -143,14 +146,7 @@ void main(void)
 			case E_DAY:
 				if (btn == 1)
 					editstate = E_HR;
-				if (global_time->tm_mon == 1)
-					global_time->tm_mday = map(in_wheel, 0, 4085, 1, 28);
-				if (global_time->tm_mon == 3 || global_time->tm_mon == 5
-						|| global_time->tm_mon == 8
-						|| global_time->tm_mon == 10)
-					global_time->tm_mday = map(in_wheel, 0, 4085, 1, 30);
-				else
-					global_time->tm_mday = map(in_wheel, 0, 4085, 1, 31);
+				global_time->tm_mday = map(in_wheel, 0, 4085, 1, mon_days[global_time->tm_mon]);
 				GrLineDrawH(&g_sContext, 56, 66, 25);
 				break;
 			case E_HR:
